@@ -1,0 +1,75 @@
+# ==========================================================================================
+# network of 100 HH (reduced) cells with heterogeneous input current (Ii)
+# all to all coupling with synaptic depression
+#
+# From Tabak, Mascagni, Bertram. J Neurophysiol, 103:2208-2221, 2010.
+# Altered by Paulo H. Lopes & Wilfredo Blanco in 2020
+# ==========================================================================================
+
+# ==========================================================================================
+# 					Cellular parameters
+p deli=15 vna=115.0 vk=-12.0 vl=10.6
+p gnabar=36.0 gkbar=12.0 gl=0.1 h0=0.8
+p vExc=70.0
+
+# ==========================================================================================
+# 					Simulation parameters
+p nNeurons=100 iniNeuron=0
+
+# ==========================================================================================
+# 					Synaptic parameters
+p taus=10.0 tauf=1.0
+p gsyn=0.036
+p alphad=0.0015 betad=0.12
+p Vthresh=40 kv=1.0
+
+# ==========================================================================================
+# 					Create a table of applied currents Ii
+#table iapp iapp100ASC.txt
+table iapp iapp100DESC.txt
+#table iapp iappDefault.txt
+
+# ==========================================================================================
+# 					Rate constants and steady 
+#					State activation function for Sodium+ (Na) and Potassium+ (K) currents
+am(v)=.1*(25-v)/(exp(.1*(25-v))-1)
+bm(v)=4.0*exp(-v/18)
+minf(v)=am(v)/(am(v)+bm(v))
+bn(v)=.125*exp(-v/80)
+an(v)=.01*(10-v)/(exp(.1*(10-v))-1.0)
+
+# ==========================================================================================
+# 					Synaptic activation
+fsyn(V)=1.0/(1+exp(Vthresh-V))
+
+# ==========================================================================================
+# 					Differential equations
+# v[i]=membrane potential of cell i | n[i]=activation of K+ conductance for cell i
+# a[i]=synaptic drive from cell i   | s[i]=synaptic recovery for terminals from cell i
+v[iniNeuron .. 99]'= -gl*(v[j]-vl)-gnabar*minf(v[j])^3*(h0-n[j])*(v[j]-vna)-gkbar*n[j]^4*(v[j]-vk)-gsyn*(atotExc-a[j]*s[j])*(v[j]-vExc)+iapp([j])
+n[iniNeuron .. 99]'= an(v[j])-(an(v[j])+bn(v[j]))*n[j]
+a[iniNeuron .. 99]'= fsyn(v[j])*(1-a[j])/tauf-a[j]/taus
+s[iniNeuron .. 99]'= alphad*(1-s[j])-betad*fsyn(v[j])*s[j]
+
+# ==========================================================================================
+# 					Synaptic drive to all cells
+atotExc=sum(iniNeuron,99)of(shift(s0,i')*shift(a0,i'))
+
+# ==========================================================================================
+# 					Auxiliary variables for output
+aux ave=sum(iniNeuron,99)of(shift(a0,i'))/nNeurons
+aux stot=sum(iniNeuron,99)of(shift(s0,i'))/nNeurons
+
+# ==========================================================================================
+# 					Only output these variables when running in silent mode
+only t ave stot
+
+# ==========================================================================================
+# 					Initial conditions
+init v[iniNeuron..99]=0.0 n[j]=0.0 a[j]=0.01 s[j]=0.25
+
+# ==========================================================================================
+# 					Simulation options
+@ toler =.0000000000001 maxstor=1000000 total=8000 bounds=100000 back=white  yp=ave meth=rungekutta
+@ dt=0.01 dtmax=0.01 dtmin=0.01 njmp=1 xlo=0 xhi=8000 ylo=0 yhi=1 nplot=2 yp2=stot vmaxpts=10000 
+done
